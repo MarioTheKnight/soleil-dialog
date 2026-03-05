@@ -1,0 +1,147 @@
+@tool
+extends CanvasLayer
+
+signal line_finished
+signal choice_selected(target_id: String, ends_conversation: bool)
+signal dialog_cancelled
+
+@onready var panel: Panel = $MarginContainer/Panel
+@onready var portrait_left: TextureRect = $MarginContainer/Panel/HBoxContainer/PortraitLeft
+@onready var portrait_right: TextureRect = $MarginContainer/Panel/HBoxContainer/PortraitRight
+@onready var nameplate: Label = $MarginContainer/Panel/HBoxContainer/TextVBox/MarginContainer/VBox/Nameplate
+@onready var text_label: RichTextLabel = $MarginContainer/Panel/HBoxContainer/TextVBox/MarginContainer/VBox/RichTextLabel
+@onready var choices_container: VBoxContainer = $MarginContainer/Panel/HBoxContainer/TextVBox/MarginContainer/ChoicesContainer
+@onready var auto_read_icon: ColorRect = $MarginContainer/Panel/AutoReadIcon
+@onready var next_icon: Polygon2D = $MarginContainer/Panel/NextIcon
+@onready var layout_vbox: VBoxContainer = $MarginContainer/Panel/HBoxContainer/TextVBox/MarginContainer/VBox
+
+var _is_typing: bool = false
+var _typing_tween: Tween
+var _current_line: DialogLine
+
+# Configuration injected by DialogManager
+var text_speed_multiplier: float = 1.0
+var base_chars_per_second: float = 40.0
+
+const RichTextBounce = preload("res://addons/soleil_dialog/effects/rich_text_bounce.gd")
+const RichTextDrop = preload("res://addons/soleil_dialog/effects/rich_text_drop.gd")
+
+func _ready() -> void:
+	# Hide all initially
+	panel.hide()
+	auto_read_icon.hide()
+	next_icon.hide()
+	
+	text_label.install_effect(RichTextBounce.new())
+	text_label.install_effect(RichTextDrop.new())
+
+
+func display_line(line: DialogLine) -> void:
+	_current_line = line
+	panel.show()
+	choices_container.hide()
+	layout_vbox.show()
+	next_icon.hide()
+	
+	# Setup Text and Name
+	if line.character_name.is_empty():
+		nameplate.hide()
+		nameplate.get_parent().get_node("HSeparator").hide()
+	else:
+		nameplate.show()
+		nameplate.get_parent().get_node("HSeparator").show()
+		nameplate.text = TranslationServer.translate(line.character_name)
+		
+	# Setup Portraits
+	portrait_left.texture = null
+	portrait_right.texture = null
+	if line.portrait:
+		if line.portrait_side == "left":
+			portrait_left.texture = line.portrait
+		else:
+			portrait_right.texture = line.portrait
+			
+	# Setup Text Reveal
+	var translated_text = TranslationServer.translate(line.text)
+	text_label.text = translated_text
+	
+	_start_typing_effect(translated_text, line)
+
+
+func _start_typing_effect(translated_text: String, line: DialogLine) -> void:
+	if _typing_tween and _typing_tween.is_valid():
+		_typing_tween.kill()
+		
+	_is_typing = true
+	text_label.visible_characters = 0
+	
+	if line.typing_style == "instant" or text_speed_multiplier <= 0.01:
+		_finish_typing()
+		return
+		
+	# Calculate duration based on characters and speed
+	# Stripping BBCode to count actual visible characters accurately
+	var plain_text = text_label.get_parsed_text()
+	var char_count = plain_text.length()
+	if char_count == 0:
+		_finish_typing()
+		return
+		
+	var actual_cps = base_chars_per_second * text_speed_multiplier * line.speed_multiplier
+	var duration = float(char_count) / actual_cps
+	
+	_typing_tween = create_tween()
+	_typing_tween.tween_property(text_label, "visible_ratio", 1.0, duration)
+	_typing_tween.finished.connect(_finish_typing)
+
+
+func _finish_typing() -> void:
+	if _typing_tween and _typing_tween.is_valid():
+		_typing_tween.kill()
+		
+	_is_typing = false
+	text_label.visible_ratio = 1.0
+	text_label.visible_characters = -1
+	next_icon.show()
+	
+	# Update position of next_icon based on text
+	next_icon.global_position = panel.global_position + panel.size - Vector2(30, 30)
+	line_finished.emit()
+
+
+func skip_typing() -> void:
+	if _is_typing:
+		_finish_typing()
+
+
+func display_choices(choices: Array[DialogChoice]) -> void:
+	layout_vbox.hide()
+	choices_container.show()
+	next_icon.hide()
+	
+	# Clear old choices
+	for child in choices_container.get_children():
+		child.queue_free()
+		
+	for choice in choices:
+		var btn = Button.new()
+		btn.text = TranslationServer.translate(choice.text)
+		btn.pressed.connect(func(): _on_choice_pressed(choice))
+		choices_container.add_child(btn)
+		
+	# Grab focus on the first choice
+	if choices_container.get_child_count() > 0:
+		choices_container.get_child(0).grab_focus()
+
+
+func _on_choice_pressed(choice: DialogChoice) -> void:
+	choice_selected.emit(choice.target_dialog_id, choice.ends_conversation)
+
+
+func close() -> void:
+	panel.hide()
+	queue_free()
+
+
+func set_auto_read_indicator(visible: bool) -> void:
+	auto_read_icon.visible = visible
