@@ -86,11 +86,11 @@ func _register_with_options_manager() -> void:
 			
 			return container
 			
-		# Traduit la cle au moment du register : les titres d'onglets custom
-		# ne sont pas traduits par options_menu (qui ne traduit que les onglets
-		# standards). En cas de changement de locale en cours de jeu, le titre
-		# de l'onglet ne se rafraichit pas — limitation connue pour v0.1.
-		opts.register_custom_tab(TranslationServer.translate("DIALOG_OPTIONS"), build_dialog_tab)
+		# Cle brute : options_menu.add_custom_tab stocke la cle dans la metadata
+		# du tab pour la retraduire automatiquement au locale_changed (depuis
+		# soleil_options >= la version qui ajoute le mecanisme de refresh des
+		# onglets custom).
+		opts.register_custom_tab("DIALOG_OPTIONS", build_dialog_tab)
 		
 		# Initial load
 		_update_options_from_manager()
