@@ -45,7 +45,10 @@ func _register_with_options_manager() -> void:
 		var make_row = func(label_text: String, control: Control) -> HBoxContainer:
 			var hbox = HBoxContainer.new()
 			var lbl = Label.new()
-			lbl.text = TranslationServer.translate(label_text)
+			# Cle brute (et non TranslationServer.translate) pour beneficier de
+			# l'auto-translate de Control : le label est traduit a l'affichage
+			# et re-traduit automatiquement au changement de locale.
+			lbl.text = label_text
 			lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			hbox.add_child(lbl)
 			control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
