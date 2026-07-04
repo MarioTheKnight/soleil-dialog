@@ -1,0 +1,35 @@
+# ============================================================
+# Normalisation des fins de ligne (independante de la machine).
+# LF dans le depot ET sur le disque — Godot gere le LF nativement.
+# Rend le comportement deterministe quel que soit core.autocrlf.
+# ============================================================
+* text=auto eol=lf
+
+# --- Ressources texte Godot : explicitement LF ---
+*.gd      text eol=lf
+*.tscn    text eol=lf
+*.tres    text eol=lf
+*.godot   text eol=lf
+*.import  text eol=lf
+*.cfg     text eol=lf
+*.csv     text eol=lf
+*.md      text eol=lf
+*.json    text eol=lf
+*.txt     text eol=lf
+*.svg     text eol=lf
+
+# --- Assets binaires : aucune conversion ---
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.webp  binary
+*.ico   binary
+*.ogg   binary
+*.wav   binary
+*.mp3   binary
+*.ttf   binary
+*.otf   binary
+*.woff  binary
+*.woff2 binary
+*.res   binary
+*.ctex  binary
