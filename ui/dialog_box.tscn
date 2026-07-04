@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://dialogbox01"]
 
-[ext_resource type="Script" uid="uid://dialogboxs" path="res://addons/soleil_dialog/ui/dialog_box.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://dlbf8xu7rnfp2" path="res://addons/soleil_dialog/ui/dialog_box.gd" id="1_script"]
 
 [node name="DialogBox" type="CanvasLayer"]
 layer = 90
