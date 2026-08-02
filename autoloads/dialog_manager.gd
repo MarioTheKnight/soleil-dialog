@@ -5,7 +5,23 @@ extends Node
 signal dialog_started(sequence_id: String)
 signal dialog_finished(sequence_id: String)
 
+## Emitted before displaying the choices of a sequence whose
+## [member DialogSequence.card_phase_before_choices] is true. The game shows
+## its mini-game UI, writes into [member dialog_vars], then calls
+## [method resolve_card_play_phase] to let the dialog continue.
+signal card_play_phase_started(sequence_id: String)
+
+## Emitted when [method resolve_card_play_phase] is called, right before the
+## (re-filtered) choices are displayed.
+signal card_play_phase_resolved(sequence_id: String)
+
 const DIALOG_BOX_SCENE = preload("res://addons/soleil_dialog/ui/dialog_box.tscn")
+
+## Shared variables table for the CURRENT dialog. Gameplay code writes into it
+## (directly or via [method set_dialog_var]) ; [DialogCondition] preconditions
+## read it to gate choices. Cleared when a dialog starts and ends — persistent
+## state belongs to the game, not here.
+var dialog_vars: Dictionary[StringName, Variant] = {}
 
 var _current_box: CanvasLayer = null
 var _current_sequence: DialogSequence = null
@@ -13,6 +29,8 @@ var _current_line_idx: int = 0
 var _is_dialog_active: bool = false
 var _is_waiting_for_input: bool = false
 var _is_waiting_for_choice: bool = false
+var _is_waiting_for_card_phase: bool = false
+var _sequence_catalog: Dictionary[String, DialogSequence] = {}
 
 # --- Options Variables ---
 var text_speed_multiplier: float = 1.0
@@ -121,6 +139,40 @@ func _update_options_from_manager() -> void:
 
 
 # -----------------------------------------------------------------------------
+# Dialog variables & sequence catalog
+# -----------------------------------------------------------------------------
+
+## Writes a variable readable by [DialogCondition] preconditions.
+func set_dialog_var(name: StringName, value: Variant) -> void:
+	dialog_vars[name] = value
+
+
+## Reads a variable, returning [param default] when absent.
+func get_dialog_var(name: StringName, default: Variant = null) -> Variant:
+	return dialog_vars.get(name, default)
+
+
+## Registers a sequence so choices can branch to it via
+## [member DialogChoice.target_dialog_id].
+func register_sequence(sequence: DialogSequence) -> void:
+	if sequence == null or sequence.id.is_empty():
+		push_warning("SoleilDialog: cannot register a null sequence or one without id.")
+		return
+	_sequence_catalog[sequence.id] = sequence
+
+
+## Registers several sequences at once.
+func register_sequences(sequences: Array[DialogSequence]) -> void:
+	for sequence in sequences:
+		register_sequence(sequence)
+
+
+## Empties the branching catalog (e.g. when leaving a location).
+func clear_sequence_catalog() -> void:
+	_sequence_catalog.clear()
+
+
+# -----------------------------------------------------------------------------
 # Flow Control
 # -----------------------------------------------------------------------------
 
@@ -128,16 +180,18 @@ func _update_options_from_manager() -> void:
 func play_dialog(sequence: DialogSequence) -> void:
 	if _is_dialog_active:
 		return
-		
+
 	if not sequence or sequence.lines.is_empty():
 		return
-		
-		
+
+
 	_is_dialog_active = true
 	_current_sequence = sequence
 	_current_line_idx = 0
 	_is_waiting_for_choice = false
 	_is_waiting_for_input = false
+	_is_waiting_for_card_phase = false
+	dialog_vars.clear()
 	dialog_started.emit(_current_sequence.id)
 	
 	_current_box = DIALOG_BOX_SCENE.instantiate()
@@ -152,7 +206,7 @@ func play_dialog(sequence: DialogSequence) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not _is_dialog_active or _is_waiting_for_choice:
+	if not _is_dialog_active or _is_waiting_for_choice or _is_waiting_for_card_phase:
 		return
 		
 	if event.is_action_pressed("ui_accept"):
@@ -210,24 +264,62 @@ func _advance_dialog() -> void:
 func _show_choices_or_end() -> void:
 	_auto_read_timer.stop()
 	_is_waiting_for_input = false
-	
+
 	if _current_sequence.choices.is_empty():
 		_end_dialog()
-	else:
-		_is_waiting_for_choice = true
-		_current_box.display_choices(_current_sequence.choices)
+		return
+
+	if _current_sequence.card_phase_before_choices:
+		_is_waiting_for_card_phase = true
+		card_play_phase_started.emit(_current_sequence.id)
+		return
+
+	_display_filtered_choices()
+
+
+## To call after [signal card_play_phase_started] once the game's mini-game
+## step is done : re-filters the choices against [member dialog_vars] and
+## displays them.
+func resolve_card_play_phase() -> void:
+	if not _is_dialog_active or not _is_waiting_for_card_phase:
+		return
+	_is_waiting_for_card_phase = false
+	card_play_phase_resolved.emit(_current_sequence.id)
+	_display_filtered_choices()
+
+
+func _display_filtered_choices() -> void:
+	var any_available: bool = false
+	for choice in _current_sequence.choices:
+		if choice.is_available(dialog_vars):
+			any_available = true
+			break
+	if not any_available:
+		push_warning("SoleilDialog: no available choice in sequence '%s' ; ending dialog." % _current_sequence.id)
+		_end_dialog()
+		return
+
+	_is_waiting_for_choice = true
+	_current_box.display_choices(_current_sequence.choices, dialog_vars)
 
 
 func _on_choice_selected(target_id: String, ends_conversation: bool) -> void:
 	_is_waiting_for_choice = false
-	
+
 	if ends_conversation or target_id.is_empty():
 		_end_dialog()
-	else:
-		print("SoleilDialog: Branching to target_id (Not fully implemented without external catalog): ", target_id)
-		# To fully support branching, DialogManager should ideally hold a catalog of sequences,
-		# but for this demo, we'll just end it, or the game logic can listen to `dialog_finished` instead.
+		return
+
+	var next: DialogSequence = _sequence_catalog.get(target_id, null)
+	if next == null:
+		push_warning("SoleilDialog: unknown target_dialog_id '%s' (register it with register_sequence) ; ending dialog." % target_id)
 		_end_dialog()
+		return
+
+	# Branches within the same dialog session : same box, same dialog_vars.
+	_current_sequence = next
+	_current_line_idx = 0
+	_show_current_line()
 
 
 func _end_dialog() -> void:
@@ -240,6 +332,8 @@ func _end_dialog() -> void:
 	_current_sequence = null
 	_is_waiting_for_input = false
 	_is_waiting_for_choice = false
+	_is_waiting_for_card_phase = false
 	_auto_read_timer.stop()
-		
+	dialog_vars.clear()
+
 	dialog_finished.emit(sequence_id)

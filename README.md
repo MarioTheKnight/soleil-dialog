@@ -146,6 +146,7 @@ DLG_EARTHQUAKE,en,"The ground [drop delay=0.05 height=20.0]is shaking![/drop]"
 | `lines` | `Array[DialogLine]` | `[]` | Lignes de dialogue dans l'ordre |
 | `choices` | `Array[DialogChoice]` | `[]` | Choix affiches apres la derniere ligne |
 | `can_skip` | `bool` | `true` | Autoriser Echap a fermer le dialogue |
+| `card_phase_before_choices` | `bool` | `false` | Emet `card_play_phase_started` et attend `resolve_card_play_phase()` avant d'afficher les choix |
 
 ### DialogLine
 
@@ -164,8 +165,58 @@ DLG_EARTHQUAKE,en,"The ground [drop delay=0.05 height=20.0]is shaking![/drop]"
 | Propriete | Type | Defaut | Description |
 |-----------|------|--------|-------------|
 | `text` | `String` | `""` | Cle i18n du texte du choix |
-| `target_dialog_id` | `String` | `""` | ID de la sequence cible (branchement) |
+| `target_dialog_id` | `String` | `""` | ID de la sequence cible (branchement, via le catalogue) |
 | `ends_conversation` | `bool` | `false` | Si `true`, ferme le dialogue sans brancher |
+| `preconditions` | `Array[DialogCondition]` | `[]` | Conditions (toutes requises) pour que le choix soit selectionnable |
+| `hide_when_locked` | `bool` | `false` | `true` : choix verrouille masque ; `false` : affiche grise |
+| `locked_hint_key` | `String` | `""` | Cle i18n ajoutee au choix grise (ex: "requiert 15 intimidation") |
+
+---
+
+## Variables de dialogue et preconditions
+
+`DialogManager.dialog_vars` est une table `Dictionary[StringName, Variant]` **locale au dialogue en cours** (videe au debut et a la fin de chaque dialogue). Le gameplay y ecrit, les preconditions y lisent :
+
+```gdscript
+DialogManager.set_dialog_var(&"intimidation", 15)   # ex: effet d'une carte sociale
+var value: Variant = DialogManager.get_dialog_var(&"intimidation", 0)
+```
+
+Les preconditions sont des ressources **`DialogCondition`** composables, assignees dans l'inspecteur sur `DialogChoice.preconditions` :
+
+| Condition | Passe quand |
+|-----------|-------------|
+| `VarAtLeastCondition` | `vars[var_name] >= min_value` (absente = 0) |
+| `VarEqualsCondition` | `vars[var_name] == expected_value` |
+| `VarTruthyCondition` | la variable est presente et vraie (flag) |
+| `AllOfCondition` | toutes les conditions imbriquees passent (ET) |
+| `AnyOfCondition` | au moins une condition imbriquee passe (OU) |
+| `NotCondition` | la condition imbriquee echoue (NON) |
+
+Pour un besoin specifique, sous-classez `DialogCondition` dans votre jeu et implementez `evaluate(vars) -> bool`.
+
+## Branchement par catalogue
+
+Pour qu'un `DialogChoice.target_dialog_id` fonctionne, la sequence cible doit etre **enregistree** :
+
+```gdscript
+DialogManager.register_sequence(branch_sequence)      # ou register_sequences([...])
+DialogManager.play_dialog(intro_sequence)
+# Un choix avec target_dialog_id = branch_sequence.id enchaine dans la meme boite,
+# en conservant dialog_vars. clear_sequence_catalog() vide le catalogue.
+```
+
+## Hook mini-jeu (phase de cartes)
+
+Si `DialogSequence.card_phase_before_choices` est `true`, au moment d'afficher les choix le manager emet `card_play_phase_started(sequence_id)` et attend. Le jeu affiche alors sa propre UI (ex: une main de cartes sociales), ecrit dans `dialog_vars`, puis rend la main :
+
+```gdscript
+DialogManager.card_play_phase_started.connect(func(_id: String) -> void:
+    my_social_hand.open()   # les effets de cartes ecrivent dans dialog_vars
+)
+# Quand le joueur a fini :
+DialogManager.resolve_card_play_phase()   # re-filtre et affiche les choix
+```
 
 ---
 
@@ -205,6 +256,8 @@ Les caracteres tombent un par un depuis le haut, creant un effet de revelation d
 |--------|------------|-------------|
 | `dialog_started` | `sequence_id: String` | Emis au debut d'une sequence |
 | `dialog_finished` | `sequence_id: String` | Emis a la fin (derniere ligne lue ou dialogue skip) |
+| `card_play_phase_started` | `sequence_id: String` | La sequence attend le mini-jeu du jeu hote (voir hook ci-dessus) |
+| `card_play_phase_resolved` | `sequence_id: String` | `resolve_card_play_phase()` appele, les choix vont s'afficher |
 
 ### Signaux de la DialogBox (internes)
 
@@ -257,6 +310,14 @@ addons/soleil_dialog/
     dialog_sequence.gd          # Resource DialogSequence
     dialog_line.gd              # Resource DialogLine
     dialog_choice.gd            # Resource DialogChoice
+    conditions/
+      dialog_condition.gd       # Base abstraite des preconditions
+      var_at_least_condition.gd # vars[x] >= n
+      var_equals_condition.gd   # vars[x] == n
+      var_truthy_condition.gd   # flag present et vrai
+      all_of_condition.gd       # ET
+      any_of_condition.gd       # OU
+      not_condition.gd          # NON
   effects/
     rich_text_bounce.gd         # Effet BBCode [bounce]
     rich_text_drop.gd           # Effet BBCode [drop]

@@ -120,24 +120,39 @@ func skip_typing() -> void:
 		_finish_typing()
 
 
-func display_choices(choices: Array[DialogChoice]) -> void:
+## Displays the given choices, filtered against [param vars] (the
+## DialogManager's dialog_vars) : a locked choice is hidden when its
+## [member DialogChoice.hide_when_locked] is true, otherwise shown disabled
+## with its optional [member DialogChoice.locked_hint_key] appended.
+func display_choices(choices: Array[DialogChoice], vars: Dictionary = {}) -> void:
 	layout_vbox.hide()
 	choices_container.show()
 	next_icon.hide()
-	
+
 	# Clear old choices
 	for child in choices_container.get_children():
 		child.queue_free()
-		
+
+	var first_enabled: Button = null
 	for choice in choices:
+		var available: bool = choice.is_available(vars)
+		if not available and choice.hide_when_locked:
+			continue
 		var btn = Button.new()
 		btn.text = TranslationServer.translate(choice.text)
-		btn.pressed.connect(func(): _on_choice_pressed(choice))
+		if available:
+			btn.pressed.connect(func(): _on_choice_pressed(choice))
+			if first_enabled == null:
+				first_enabled = btn
+		else:
+			btn.disabled = true
+			if not choice.locked_hint_key.is_empty():
+				btn.text += " (%s)" % TranslationServer.translate(choice.locked_hint_key)
 		choices_container.add_child(btn)
-		
-	# Grab focus on the first choice
-	if choices_container.get_child_count() > 0:
-		choices_container.get_child(0).grab_focus()
+
+	# Grab focus on the first selectable choice
+	if first_enabled != null:
+		first_enabled.grab_focus()
 
 
 func _on_choice_pressed(choice: DialogChoice) -> void:

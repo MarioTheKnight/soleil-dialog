@@ -12,3 +12,23 @@ class_name DialogChoice
 ## Optional boolean indicating if choosing this option should immediately end the conversation,
 ## ignoring target_dialog_id.
 @export var ends_conversation: bool = false
+
+## Conditions that must ALL pass (against DialogManager.dialog_vars) for this
+## choice to be selectable. Empty = always available.
+@export var preconditions: Array[DialogCondition] = []
+
+## If true, a locked choice is hidden entirely ; if false (default), it is
+## shown disabled (grayed out), optionally annotated with [member locked_hint_key].
+@export var hide_when_locked: bool = false
+
+## Optional translation key appended to a visible locked choice as a hint
+## (e.g. "requires 15 intimidation").
+@export var locked_hint_key: String = ""
+
+
+## Returns true when every precondition passes for [param vars].
+func is_available(vars: Dictionary) -> bool:
+	for condition in preconditions:
+		if condition != null and not condition.evaluate(vars):
+			return false
+	return true
