@@ -1,12 +1,12 @@
-[gd_scene load_steps=2 format=3 uid="uid://dialogbox01"]
+[gd_scene format=3 uid="uid://dialogbox01"]
 
 [ext_resource type="Script" uid="uid://dlbf8xu7rnfp2" path="res://addons/soleil_dialog/ui/dialog_box.gd" id="1_script"]
 
-[node name="DialogBox" type="CanvasLayer"]
+[node name="DialogBox" type="CanvasLayer" unique_id=837356545]
 layer = 90
 script = ExtResource("1_script")
 
-[node name="MarginContainer" type="MarginContainer" parent="."]
+[node name="MarginContainer" type="MarginContainer" parent="." unique_id=1465918221]
 anchors_preset = 12
 anchor_top = 1.0
 anchor_right = 1.0
@@ -19,10 +19,10 @@ theme_override_constants/margin_top = 16
 theme_override_constants/margin_right = 64
 theme_override_constants/margin_bottom = 32
 
-[node name="Panel" type="Panel" parent="MarginContainer"]
+[node name="Panel" type="Panel" parent="MarginContainer" unique_id=1771831846]
 layout_mode = 2
 
-[node name="HBoxContainer" type="HBoxContainer" parent="MarginContainer/Panel"]
+[node name="HBoxContainer" type="HBoxContainer" parent="MarginContainer/Panel" unique_id=756389272]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -31,17 +31,17 @@ grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/separation = 16
 
-[node name="PortraitLeft" type="TextureRect" parent="MarginContainer/Panel/HBoxContainer"]
+[node name="PortraitLeft" type="TextureRect" parent="MarginContainer/Panel/HBoxContainer" unique_id=1651441520]
 custom_minimum_size = Vector2(180, 0)
 layout_mode = 2
 expand_mode = 1
 stretch_mode = 5
 
-[node name="TextVBox" type="VBoxContainer" parent="MarginContainer/Panel/HBoxContainer"]
+[node name="TextVBox" type="VBoxContainer" parent="MarginContainer/Panel/HBoxContainer" unique_id=1978090599]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="MarginContainer" type="MarginContainer" parent="MarginContainer/Panel/HBoxContainer/TextVBox"]
+[node name="MarginContainer" type="MarginContainer" parent="MarginContainer/Panel/HBoxContainer/TextVBox" unique_id=2092814429]
 layout_mode = 2
 size_flags_vertical = 3
 theme_override_constants/margin_left = 16
@@ -49,38 +49,38 @@ theme_override_constants/margin_top = 16
 theme_override_constants/margin_right = 16
 theme_override_constants/margin_bottom = 16
 
-[node name="VBox" type="VBoxContainer" parent="MarginContainer/Panel/HBoxContainer/TextVBox/MarginContainer"]
+[node name="VBox" type="VBoxContainer" parent="MarginContainer/Panel/HBoxContainer/TextVBox/MarginContainer" unique_id=1786372670]
 layout_mode = 2
 
-[node name="Nameplate" type="Label" parent="MarginContainer/Panel/HBoxContainer/TextVBox/MarginContainer/VBox"]
+[node name="Nameplate" type="Label" parent="MarginContainer/Panel/HBoxContainer/TextVBox/MarginContainer/VBox" unique_id=1519756471]
 layout_mode = 2
 theme_type_variation = &"HeaderLarge"
 text = "Character Name"
 
-[node name="HSeparator" type="HSeparator" parent="MarginContainer/Panel/HBoxContainer/TextVBox/MarginContainer/VBox"]
+[node name="HSeparator" type="HSeparator" parent="MarginContainer/Panel/HBoxContainer/TextVBox/MarginContainer/VBox" unique_id=1631917356]
 layout_mode = 2
 
-[node name="RichTextLabel" type="RichTextLabel" parent="MarginContainer/Panel/HBoxContainer/TextVBox/MarginContainer/VBox"]
+[node name="RichTextLabel" type="RichTextLabel" parent="MarginContainer/Panel/HBoxContainer/TextVBox/MarginContainer/VBox" unique_id=2146937567]
 layout_mode = 2
 size_flags_vertical = 3
 bbcode_enabled = true
 text = "Dialog text goes here."
 scroll_active = false
 
-[node name="ChoicesContainer" type="VBoxContainer" parent="MarginContainer/Panel/HBoxContainer/TextVBox/MarginContainer"]
+[node name="ChoicesContainer" type="VBoxContainer" parent="MarginContainer/Panel/HBoxContainer/TextVBox/MarginContainer" unique_id=1266948590]
 visible = false
 layout_mode = 2
 size_flags_vertical = 8
 theme_override_constants/separation = 8
 
-[node name="PortraitRight" type="TextureRect" parent="MarginContainer/Panel/HBoxContainer"]
+[node name="PortraitRight" type="TextureRect" parent="MarginContainer/Panel/HBoxContainer" unique_id=1756445773]
 custom_minimum_size = Vector2(180, 0)
 layout_mode = 2
 expand_mode = 1
 stretch_mode = 5
 flip_h = true
 
-[node name="AutoReadIcon" type="ColorRect" parent="MarginContainer/Panel"]
+[node name="AutoReadIcon" type="ColorRect" parent="MarginContainer/Panel" unique_id=2119722780]
 visible = false
 layout_mode = 1
 anchors_preset = 3
@@ -96,7 +96,7 @@ grow_horizontal = 0
 grow_vertical = 0
 color = Color(0.2, 0.8, 0.4, 1)
 
-[node name="NextIcon" type="Polygon2D" parent="MarginContainer/Panel"]
+[node name="NextIcon" type="Polygon2D" parent="MarginContainer/Panel" unique_id=1548492372]
 visible = false
 position = Vector2(-20, -20)
 color = Color(1, 0.8, 0.2, 1)
