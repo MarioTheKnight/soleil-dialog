@@ -27,11 +27,17 @@ const RichTextBounce = preload("res://addons/soleil_dialog/effects/rich_text_bou
 const RichTextDrop = preload("res://addons/soleil_dialog/effects/rich_text_drop.gd")
 
 func _ready() -> void:
+	# In the editor, do NOT mutate the scene: hiding nodes and installing
+	# effects here would be persisted by the editor on save (accumulating
+	# duplicated custom_effects and a hidden panel at every session).
+	if Engine.is_editor_hint():
+		return
+
 	# Hide all initially
 	panel.hide()
 	auto_read_icon.hide()
 	next_icon.hide()
-	
+
 	text_label.install_effect(RichTextBounce.new())
 	text_label.install_effect(RichTextDrop.new())
 
