@@ -37,6 +37,11 @@ func _ready() -> void:
 	if Engine.is_editor_hint():
 		return
 
+	# The box freezes under tree pause (typing tween, effects, clicks) even
+	# though its DialogManager parent runs in PROCESS_MODE_ALWAYS — a pause
+	# menu can open OVER a dialog without it advancing underneath.
+	process_mode = Node.PROCESS_MODE_PAUSABLE
+
 	# Hide all initially
 	panel.hide()
 	auto_read_icon.hide()

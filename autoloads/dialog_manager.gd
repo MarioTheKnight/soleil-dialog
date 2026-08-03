@@ -29,6 +29,11 @@ var dialog_vars: Dictionary[StringName, Variant] = {}
 var box_anchor_left: float = 0.0
 var box_anchor_right: float = 1.0
 
+## If true (default), ui_cancel skips a skippable dialog. A host game with
+## its own Escape behavior (e.g. a pause menu over the dialog) sets it to
+## false : ui_cancel is then ignored here and propagates to the host.
+var cancel_skips_dialog: bool = true
+
 var _current_box: CanvasLayer = null
 var _current_sequence: DialogSequence = null
 var _current_line_idx: int = 0
@@ -214,6 +219,10 @@ func play_dialog(sequence: DialogSequence) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	# Un jeu en pause ne fait pas avancer ses dialogues (le menu de pause
+	# du jeu hote peut s'ouvrir PAR-DESSUS un dialogue en cours).
+	if get_tree().paused:
+		return
 	if not _is_dialog_active or _is_waiting_for_choice or _is_waiting_for_card_phase:
 		return
 
@@ -221,7 +230,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_request_advance()
 		get_viewport().set_input_as_handled()
 
-	elif event.is_action_pressed("ui_cancel") and _current_sequence.can_skip:
+	elif cancel_skips_dialog and event.is_action_pressed("ui_cancel") and _current_sequence.can_skip:
 		_end_dialog()
 		# Consomme l'evenement : sans cela, un gestionnaire de pause du jeu
 		# hote (ex: soleil_pause) reagirait au MEME Echap et s'ouvrirait
@@ -271,6 +280,8 @@ func _start_auto_read_timer() -> void:
 
 
 func _on_auto_read_timeout() -> void:
+	if get_tree().paused:
+		return
 	if _is_waiting_for_input and not _is_waiting_for_choice:
 		_advance_dialog()
 
