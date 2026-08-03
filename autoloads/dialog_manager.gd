@@ -23,6 +23,12 @@ const DIALOG_BOX_SCENE = preload("res://addons/soleil_dialog/ui/dialog_box.tscn"
 ## state belongs to the game, not here.
 var dialog_vars: Dictionary[StringName, Variant] = {}
 
+## Horizontal screen fraction the dialog box occupies (0..1 anchors applied to
+## the box root container). Defaults to full width ; a host game with a
+## persistent side panel narrows it (e.g. right = 0.667 for a 2/3 split).
+var box_anchor_left: float = 0.0
+var box_anchor_right: float = 1.0
+
 var _current_box: CanvasLayer = null
 var _current_sequence: DialogSequence = null
 var _current_line_idx: int = 0
@@ -200,6 +206,7 @@ func play_dialog(sequence: DialogSequence) -> void:
 	_current_box.choice_selected.connect(_on_choice_selected)
 	_current_box.advance_requested.connect(_request_advance)
 	add_child(_current_box)
+	_current_box.set_horizontal_anchors(box_anchor_left, box_anchor_right)
 	
 	_current_box.set_auto_read_indicator(auto_read_enabled)
 	

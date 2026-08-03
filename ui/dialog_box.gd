@@ -55,6 +55,15 @@ func _ready() -> void:
 	portrait_right.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 
+## Constrains the box to a horizontal screen fraction (0..1 anchors), so a
+## host game with a persistent side panel can keep the box off it. Called by
+## DialogManager right after instantiation.
+func set_horizontal_anchors(anchor_left_value: float, anchor_right_value: float) -> void:
+	var margin: MarginContainer = $MarginContainer
+	margin.anchor_left = clampf(anchor_left_value, 0.0, 1.0)
+	margin.anchor_right = clampf(anchor_right_value, 0.0, 1.0)
+
+
 func _on_panel_gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		var mb: InputEventMouseButton = event as InputEventMouseButton
