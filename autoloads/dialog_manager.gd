@@ -219,9 +219,14 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	if event.is_action_pressed("ui_accept"):
 		_request_advance()
+		get_viewport().set_input_as_handled()
 
 	elif event.is_action_pressed("ui_cancel") and _current_sequence.can_skip:
 		_end_dialog()
+		# Consomme l'evenement : sans cela, un gestionnaire de pause du jeu
+		# hote (ex: soleil_pause) reagirait au MEME Echap et s'ouvrirait
+		# par-dessus la fermeture du dialogue.
+		get_viewport().set_input_as_handled()
 
 
 ## Avance le dialogue comme ui_accept : skip du typing en cours, sinon ligne
