@@ -198,6 +198,7 @@ func play_dialog(sequence: DialogSequence) -> void:
 	_current_box.text_speed_multiplier = text_speed_multiplier
 	_current_box.line_finished.connect(_on_line_finished)
 	_current_box.choice_selected.connect(_on_choice_selected)
+	_current_box.advance_requested.connect(_request_advance)
 	add_child(_current_box)
 	
 	_current_box.set_auto_read_indicator(auto_read_enabled)
@@ -208,15 +209,24 @@ func play_dialog(sequence: DialogSequence) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not _is_dialog_active or _is_waiting_for_choice or _is_waiting_for_card_phase:
 		return
-		
+
 	if event.is_action_pressed("ui_accept"):
-		if _is_waiting_for_input:
-			_advance_dialog()
-		elif _current_box:
-			_current_box.skip_typing()
-			
+		_request_advance()
+
 	elif event.is_action_pressed("ui_cancel") and _current_sequence.can_skip:
 		_end_dialog()
+
+
+## Avance le dialogue comme ui_accept : skip du typing en cours, sinon ligne
+## suivante. Appele par l'input clavier ET par le clic dans le cadre
+## ([signal DialogBox.advance_requested]).
+func _request_advance() -> void:
+	if not _is_dialog_active or _is_waiting_for_choice or _is_waiting_for_card_phase:
+		return
+	if _is_waiting_for_input:
+		_advance_dialog()
+	elif _current_box:
+		_current_box.skip_typing()
 
 
 func _show_current_line() -> void:

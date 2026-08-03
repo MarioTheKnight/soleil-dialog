@@ -122,6 +122,7 @@ func _on_dialog_finished(sequence_id: String) -> void:
 | Action | Effet |
 |--------|-------|
 | `ui_accept` (Entree/Espace) | Avance a la ligne suivante, ou skip le typing en cours |
+| **Clic gauche dans le cadre** | Identique a `ui_accept` (les boutons de choix restent prioritaires) |
 | `ui_cancel` (Echap) | Ferme le dialogue (si `can_skip = true` sur la sequence) |
 
 ### Effets RichText dans le texte

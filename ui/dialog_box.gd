@@ -5,6 +5,10 @@ signal line_finished
 signal choice_selected(target_id: String, ends_conversation: bool)
 signal dialog_cancelled
 
+## Emitted on left click inside the dialog frame : same meaning as ui_accept
+## (skip typing while revealing, advance once the line is fully shown).
+signal advance_requested
+
 @onready var panel: Panel = $MarginContainer/Panel
 @onready var portrait_left: TextureRect = $MarginContainer/Panel/HBoxContainer/PortraitLeft
 @onready var portrait_right: TextureRect = $MarginContainer/Panel/HBoxContainer/PortraitRight
@@ -40,6 +44,23 @@ func _ready() -> void:
 
 	text_label.install_effect(RichTextBounce.new())
 	text_label.install_effect(RichTextDrop.new())
+
+	# Click-to-advance : a left click anywhere in the frame acts like
+	# ui_accept. Children that would swallow the click are set to IGNORE so
+	# the panel receives it ; the choice Buttons (ChoicesContainer) still
+	# consume their own clicks first, so they are unaffected.
+	panel.gui_input.connect(_on_panel_gui_input)
+	text_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	portrait_left.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	portrait_right.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+
+func _on_panel_gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton:
+		var mb: InputEventMouseButton = event as InputEventMouseButton
+		if mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
+			advance_requested.emit()
+			panel.accept_event()
 
 
 func display_line(line: DialogLine) -> void:
