@@ -257,6 +257,7 @@ Les caracteres tombent un par un depuis le haut, creant un effet de revelation d
 |--------|------------|-------------|
 | `dialog_started` | `sequence_id: String` | Emis au debut d'une sequence |
 | `dialog_finished` | `sequence_id: String` | Emis a la fin (derniere ligne lue ou dialogue skip) |
+| `choice_made` | `sequence_id: String, choice: DialogChoice` | Le joueur a retenu un choix (avant branchement/fin) — les consommateurs lisent `choice.tags`, texte, cible |
 | `card_play_phase_started` | `sequence_id: String` | La sequence attend le mini-jeu du jeu hote (voir hook ci-dessus) |
 | `card_play_phase_resolved` | `sequence_id: String` | `resolve_card_play_phase()` appele, les choix vont s'afficher |
 
@@ -265,7 +266,7 @@ Les caracteres tombent un par un depuis le haut, creant un effet de revelation d
 | Signal | Parametres | Description |
 |--------|------------|-------------|
 | `line_finished` | aucun | Le typing de la ligne courante est termine |
-| `choice_selected` | `target_id: String, ends_conversation: bool` | Le joueur a clique un choix |
+| `choice_selected` | `choice: DialogChoice` | Le joueur a clique un choix (le manager lit cible/fin/tags sur la ressource) |
 
 ---
 

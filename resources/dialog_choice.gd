@@ -25,6 +25,11 @@ class_name DialogChoice
 ## (e.g. "requires 15 intimidation").
 @export var locked_hint_key: String = ""
 
+## Free-form metadata carried by this choice (e.g. tone or faction tags).
+## The dialog system does not interpret them ; consumers read them from the
+## [signal DialogManager.choice_made] payload.
+@export var tags: Array[StringName] = []
+
 
 ## Returns true when every precondition passes for [param vars].
 func is_available(vars: Dictionary) -> bool:

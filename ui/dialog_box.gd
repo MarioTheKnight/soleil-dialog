@@ -2,7 +2,7 @@
 extends CanvasLayer
 
 signal line_finished
-signal choice_selected(target_id: String, ends_conversation: bool)
+signal choice_selected(choice: DialogChoice)
 signal dialog_cancelled
 
 ## Emitted on left click inside the dialog frame : same meaning as ui_accept
@@ -191,7 +191,7 @@ func display_choices(choices: Array[DialogChoice], vars: Dictionary = {}) -> voi
 
 
 func _on_choice_pressed(choice: DialogChoice) -> void:
-	choice_selected.emit(choice.target_dialog_id, choice.ends_conversation)
+	choice_selected.emit(choice)
 
 
 func close() -> void:

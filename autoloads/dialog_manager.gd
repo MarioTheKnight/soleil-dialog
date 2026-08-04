@@ -5,6 +5,11 @@ extends Node
 signal dialog_started(sequence_id: String)
 signal dialog_finished(sequence_id: String)
 
+## Emitted when the player picks a choice, before the dialog branches or
+## ends. Consumers can read the choice's [member DialogChoice.tags], text
+## key, or target — the dialog system itself does not interpret tags.
+signal choice_made(sequence_id: String, choice: DialogChoice)
+
 ## Emitted before displaying the choices of a sequence whose
 ## [member DialogSequence.card_phase_before_choices] is true. The game shows
 ## its mini-game UI, writes into [member dialog_vars], then calls
@@ -336,16 +341,19 @@ func _display_filtered_choices() -> void:
 	_current_box.display_choices(_current_sequence.choices, dialog_vars)
 
 
-func _on_choice_selected(target_id: String, ends_conversation: bool) -> void:
+func _on_choice_selected(choice: DialogChoice) -> void:
 	_is_waiting_for_choice = false
 
-	if ends_conversation or target_id.is_empty():
+	if _current_sequence != null:
+		choice_made.emit(_current_sequence.id, choice)
+
+	if choice.ends_conversation or choice.target_dialog_id.is_empty():
 		_end_dialog()
 		return
 
-	var next: DialogSequence = _sequence_catalog.get(target_id, null)
+	var next: DialogSequence = _sequence_catalog.get(choice.target_dialog_id, null)
 	if next == null:
-		push_warning("SoleilDialog: unknown target_dialog_id '%s' (register it with register_sequence) ; ending dialog." % target_id)
+		push_warning("SoleilDialog: unknown target_dialog_id '%s' (register it with register_sequence) ; ending dialog." % choice.target_dialog_id)
 		_end_dialog()
 		return
 
