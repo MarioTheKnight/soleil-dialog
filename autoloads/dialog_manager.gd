@@ -37,6 +37,17 @@ var box_anchor_right: float = 1.0
 ## If true (default), ui_cancel skips a skippable dialog. A host game with
 ## its own Escape behavior (e.g. a pause menu over the dialog) sets it to
 ## false : ui_cancel is then ignored here and propagates to the host.
+## [br]
+## [b]This setting, like the box anchors above, lives on the autoload and
+## therefore OUTLIVES the scene that set it.[/b] A screen that does not
+## declare it inherits whatever the previous screen left behind — so the same
+## key can skip a whole cutscene on a fresh launch and do nothing once another
+## scene has been visited. Every screen playing a dialog should state its own
+## policy rather than rely on the default.
+## [br]
+## For "this particular sequence must never be skipped", prefer
+## [member DialogSequence.can_skip] : it travels with the data and cannot be
+## undone by a host that forgot to configure itself.
 var cancel_skips_dialog: bool = true
 
 var _current_box: CanvasLayer = null

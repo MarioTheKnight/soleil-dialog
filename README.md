@@ -348,3 +348,31 @@ MonJeu/
     translations/
       dialogs.csv               # Cles : CHAR_*, DLG_*
 ```
+
+## Pistes de polish
+
+### Systeme de saut (a concevoir)
+
+Aujourd'hui le saut d'un dialogue repose sur deux verrous seulement :
+
+- `DialogManager.cancel_skips_dialog` — un drapeau GLOBAL porte par l'autoload,
+  qui survit donc a la scene qui l'a pose. Un ecran qui ne le declare pas herite
+  de ce que le precedent a laisse, et la meme touche peut sauter une cinematique
+  au premier lancement puis n'avoir aucun effet une fois une autre scene visitee.
+- `DialogSequence.can_skip` — par sequence, et donc porte par la donnee : plus
+  sur, car aucun hote distrait ne peut le defaire.
+
+C'est binaire et un peu court pour un jeu narratif. Pistes a instruire, sans
+decision arretee a ce stade :
+
+- **Saut ligne a ligne** plutot que saut integral (avancer vite sans tout perdre).
+- **Saut du seul texte deja vu** — la sequence retient ce que le joueur a lu, et
+  seules ces lignes deviennent sautables. Reponse classique au dialogue rejoue a
+  chaque partie dans un roguelike.
+- **Maintien pour sauter** (appui long) plutot qu'appui simple : evite le saut
+  accidentel d'une scene qu'on decouvre.
+- **Politique par sequence** (une enumeration a la place de `can_skip`) : jamais /
+  toujours / une fois vue.
+
+Besoin exprime par le projet consommateur mercure (2026-08-07), apres qu'un
+prologue s'est laisse sauter integralement du fait de l'etat global herite.
