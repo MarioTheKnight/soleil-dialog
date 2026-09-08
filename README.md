@@ -75,7 +75,7 @@ L'autoload `DialogManager` est enregistre automatiquement.
 
 1. Creez une ressource **`DialogSequence`**
 2. Glissez vos `DialogLine` dans le tableau `lines` (dans l'ordre)
-3. Optionnel : ajoutez des `DialogChoice` dans le tableau `choices` (affiches apres la derniere ligne)
+3. Optionnel : pour proposer des reponses, creez un `DialogPrompt` avec des `DialogChoice`, et pointez `next_dialog_id` de la sequence dessus
 4. Donnez un `id` unique (utile pour le branchement)
 
 ### 3. Lancer le dialogue en code
@@ -137,17 +137,66 @@ DLG_EARTHQUAKE,en,"The ground [drop delay=0.05 height=20.0]is shaking![/drop]"
 
 ---
 
+## Le graphe de conversation (v0.2.0)
+
+Une conversation est une **chaine de noeuds** (`DialogNode`), chacun ne faisant qu'une chose :
+
+| Noeud | Fait | Sort par |
+|---|---|---|
+| `DialogSequence` | parle (des `DialogLine`) | `next_dialog_id`, ou fin |
+| `DialogPrompt` | demande au joueur (des `DialogChoice`) | une sortie par option |
+| `DialogContest` | remet la main au mini-jeu du jeu hote (phase de cartes), qui **ecrit des variables** | `next_dialog_id` |
+| `DialogSwitch` | branche **sans ecran** sur les variables : ses cas dans l'ordre, sinon `default_target_id` | une sortie par cas, plus la sortie par defaut |
+
+Les noeuds se referencent **par id** via le catalogue (`register_sequence` / `register_sequences`, qui acceptent tout noeud), et **n'importe quel noeud peut ouvrir une conversation** — un aiguillage en entree ouvre sur un salut plutot que sur la presentation quand le jeu a seme « deja entendue » dans les variables (voir `dialog_vars_reset`).
+
+Pourquoi des noeuds separes plutot qu'une sequence riche : une sequence qui porte a la fois des repliques, une phase de cartes et des choix fige leur ORDRE (parler, puis affronter, puis choisir). Separes, un choix peut mener a un affrontement dont le resultat decide la reponse — le coeur d'une confrontation sociale — et un outil dessine la conversation exactement comme elle se joue.
+
+> **Ancien contenu** : `DialogSequence.choices` et `card_phase_before_choices` sont **deprecies** mais toujours joues (les choix en ligne valent un `DialogPrompt` implicite apres la derniere ligne, la phase de cartes un `DialogContest` implicite avant). Migrer = deplacer les choix dans un `DialogPrompt` et pointer `next_dialog_id` dessus.
+
 ## Resources (Reference)
+
+### DialogNode (base abstraite)
+
+| Propriete / methode | Type | Description |
+|-----------|------|-------------|
+| `id` | `String` | Identifiant unique dans le catalogue ; la cle des branchements |
+| `targets()` | `PackedStringArray` | Les ids que le noeud peut suivre, dans l'ordre de ses sorties, `""` pour « la conversation se ferme » — pour les outils |
 
 ### DialogSequence
 
 | Propriete | Type | Defaut | Description |
 |-----------|------|--------|-------------|
-| `id` | `String` | `""` | Identifiant unique de la sequence (pour le branchement) |
 | `lines` | `Array[DialogLine]` | `[]` | Lignes de dialogue dans l'ordre |
-| `choices` | `Array[DialogChoice]` | `[]` | Choix affiches apres la derniere ligne |
+| `next_dialog_id` | `String` | `""` | Noeud joue apres la derniere ligne ; vide = fin de la conversation |
 | `can_skip` | `bool` | `true` | Autoriser Echap a fermer le dialogue |
-| `card_phase_before_choices` | `bool` | `false` | Emet `card_play_phase_started` et attend `resolve_card_play_phase()` avant d'afficher les choix |
+| `choices` | `Array[DialogChoice]` | `[]` | **Deprecie** — utiliser un `DialogPrompt` |
+| `card_phase_before_choices` | `bool` | `false` | **Deprecie** — utiliser un `DialogContest` |
+
+### DialogPrompt
+
+| Propriete | Type | Defaut | Description |
+|-----------|------|--------|-------------|
+| `choices` | `Array[DialogChoice]` | `[]` | Les options, dans l'ordre d'affichage ; aucune disponible = la conversation se ferme (avertissement) |
+
+### DialogContest
+
+| Propriete | Type | Defaut | Description |
+|-----------|------|--------|-------------|
+| `outcome_mode` | `Mode` | `FRESH` | `FRESH` : ses variables de resultat sont effacees au debut (ce duel seul decide) ; `CUMULATIVE` : elles gardent leur valeur |
+| `outcome_vars` | `Array[StringName]` | `[]` | Les variables que le mini-jeu ecrit — ce que `FRESH` efface, ce que les outils proposent aux conditions qui suivent |
+| `next_dialog_id` | `String` | `""` | Noeud joue une fois `resolve_card_play_phase()` appele |
+
+Le noeud ne porte **aucune regle du duel** : c'est le contrat, les regles peuvent changer entierement sans que le graphe bouge.
+
+### DialogSwitch et DialogSwitchCase
+
+| Propriete | Type | Defaut | Description |
+|-----------|------|--------|-------------|
+| `cases` | `Array[DialogSwitchCase]` | `[]` | Essayes dans l'ordre ; le premier qui passe gagne |
+| `default_target_id` | `String` | `""` | Suivi quand aucun cas ne passe |
+| `DialogSwitchCase.conditions` | `Array[DialogCondition]` | `[]` | Toutes requises ; aucune = passe toujours |
+| `DialogSwitchCase.target_dialog_id` | `String` | `""` | Noeud suivi quand le cas s'applique |
 
 ### DialogLine
 
@@ -198,26 +247,42 @@ Pour un besoin specifique, sous-classez `DialogCondition` dans votre jeu et impl
 
 ## Branchement par catalogue
 
-Pour qu'un `DialogChoice.target_dialog_id` fonctionne, la sequence cible doit etre **enregistree** :
+Pour qu'un branchement (`DialogChoice.target_dialog_id`, `next_dialog_id`, un cas d'aiguillage) fonctionne, le noeud cible doit etre **enregistre** :
 
 ```gdscript
-DialogManager.register_sequence(branch_sequence)      # ou register_sequences([...])
-DialogManager.play_dialog(intro_sequence)
-# Un choix avec target_dialog_id = branch_sequence.id enchaine dans la meme boite,
-# en conservant dialog_vars. clear_sequence_catalog() vide le catalogue.
+DialogManager.register_sequences([entry_switch, intro, contest, prompt, branch_a, branch_b])
+DialogManager.play_dialog(entry_switch)   # n'importe quel noeud peut ouvrir
+# Les branchements enchainent dans la meme boite, en conservant dialog_vars.
+# clear_sequence_catalog() vide le catalogue ; get_registered(id) relit un noeud.
 ```
+
+## Semer la memoire du jeu dans les variables
+
+`dialog_vars` est vide au debut de chaque conversation — par construction, rien de persistant n'y vit. Pour qu'un aiguillage ou une condition lise ce que le jeu retient (une sequence deja entendue, un drapeau de la partie), le jeu **seme** dans la table au signal `dialog_vars_reset`, emis juste apres le vidage et avant le premier noeud :
+
+```gdscript
+DialogManager.dialog_vars_reset.connect(func(vars: Dictionary) -> void:
+    for id in my_save.seen_dialogues:
+        vars[StringName("seen:" + id)] = true
+)
+# Cote contenu : une DialogCondition maison lit vars["seen:<id>"].
+```
+
+Les conditions restent pures et testables ; la memoire reste au jeu.
 
 ## Hook mini-jeu (phase de cartes)
 
-Si `DialogSequence.card_phase_before_choices` est `true`, au moment d'afficher les choix le manager emet `card_play_phase_started(sequence_id)` et attend. Le jeu affiche alors sa propre UI (ex: une main de cartes sociales), ecrit dans `dialog_vars`, puis rend la main :
+Quand la conversation entre dans un `DialogContest`, le manager efface ses `outcome_vars` si `outcome_mode` est `FRESH`, emet `card_play_phase_started(contest_id)` et attend. Le jeu affiche alors sa propre UI (ex: une main de cartes sociales), ecrit dans `dialog_vars`, puis rend la main :
 
 ```gdscript
 DialogManager.card_play_phase_started.connect(func(_id: String) -> void:
     my_social_hand.open()   # les effets de cartes ecrivent dans dialog_vars
 )
 # Quand le joueur a fini :
-DialogManager.resolve_card_play_phase()   # re-filtre et affiche les choix
+DialogManager.resolve_card_play_phase()   # la conversation suit next_dialog_id
 ```
+
+Ce que le duel a decide se lit ensuite dans un `DialogSwitch` (sans demander au joueur) ou dans les preconditions d'un `DialogPrompt` (options debloquees ou verrouillees).
 
 ---
 
@@ -255,11 +320,13 @@ Les caracteres tombent un par un depuis le haut, creant un effet de revelation d
 
 | Signal | Parametres | Description |
 |--------|------------|-------------|
-| `dialog_started` | `sequence_id: String` | Emis au debut d'une sequence |
-| `dialog_finished` | `sequence_id: String` | Emis a la fin (derniere ligne lue ou dialogue skip) |
-| `choice_made` | `sequence_id: String, choice: DialogChoice` | Le joueur a retenu un choix (avant branchement/fin) — les consommateurs lisent `choice.tags`, texte, cible |
-| `card_play_phase_started` | `sequence_id: String` | La sequence attend le mini-jeu du jeu hote (voir hook ci-dessus) |
-| `card_play_phase_resolved` | `sequence_id: String` | `resolve_card_play_phase()` appele, les choix vont s'afficher |
+| `dialog_vars_reset` | `vars: Dictionary` | La table vient d'etre videe pour une conversation qui commence : le jeu y seme ce que les conditions doivent voir |
+| `dialog_started` | `sequence_id: String` | La conversation commence ; l'id est celui du noeud d'ENTREE (peut-etre un aiguillage) |
+| `node_entered` | `node: DialogNode` | Un noeud commence a jouer — l'entree, puis chaque noeud atteint ; `node is DialogSequence` pour ne garder que ce qui parle |
+| `dialog_finished` | `sequence_id: String` | La conversation est finie ; l'id est celui du DERNIER noeud |
+| `choice_made` | `sequence_id: String, choice: DialogChoice` | Le joueur a retenu une option (avant branchement/fin) — les consommateurs lisent `choice.tags`, texte, cible |
+| `card_play_phase_started` | `sequence_id: String` | Un affrontement attend le mini-jeu du jeu hote (voir hook ci-dessus) |
+| `card_play_phase_resolved` | `sequence_id: String` | `resolve_card_play_phase()` appele, la conversation va suivre |
 
 ### Signaux de la DialogBox (internes)
 
