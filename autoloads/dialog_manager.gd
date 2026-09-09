@@ -27,11 +27,23 @@ signal node_entered(node: DialogNode)
 ## key, or target — the dialog system itself does not interpret tags.
 signal choice_made(sequence_id: String, choice: DialogChoice)
 
+## A [DialogActivity] node begins : the game runs what the node asks for (a
+## shop, a card phase, a scene — dispatched on [member DialogActivity.activity]
+## or on the node's class), writes into [member dialog_vars], then calls
+## [method resolve_activity] to let the conversation continue. The dialog
+## box is hidden meanwhile when the node says so ([member DialogActivity.hides_dialog]).
+signal activity_started(node: DialogActivity)
+
+## Emitted when [method resolve_activity] is called, right before the
+## conversation moves on to the activity's next node.
+signal activity_resolved(node: DialogActivity)
+
 ## A [DialogContest] node begins (or, for older content, a sequence whose
 ## [member DialogSequence.card_phase_before_choices] is true reaches its
-## choices) : [param sequence_id] is that node's id. The game shows its
-## mini-game UI, writes into [member dialog_vars], then calls
-## [method resolve_card_play_phase] to let the conversation continue.
+## choices) : [param sequence_id] is that node's id. Emitted alongside
+## [signal activity_started] for contests, so a game wired to the card phase
+## keeps working. The game shows its mini-game UI, writes into
+## [member dialog_vars], then calls [method resolve_card_play_phase].
 signal card_play_phase_started(sequence_id: String)
 
 ## Emitted when [method resolve_card_play_phase] is called, right before the
@@ -304,9 +316,9 @@ func _enter(node: DialogNode, hops: int) -> void:
 	elif node is DialogPrompt:
 		_current_sequence = null
 		_display_filtered_choices((node as DialogPrompt).choices)
-	elif node is DialogContest:
+	elif node is DialogActivity:
 		_current_sequence = null
-		_begin_contest(node as DialogContest)
+		_begin_activity(node as DialogActivity)
 	elif node is DialogSwitch:
 		_current_sequence = null
 		var target: String = (node as DialogSwitch).pick(dialog_vars)
@@ -328,16 +340,32 @@ func _follow(target_id: String, from_id: String) -> DialogNode:
 	return next
 
 
-## A contest node : erase its outcome variables if it starts fresh, hand over
-## to the game, continue to its next node once resolved.
-func _begin_contest(contest: DialogContest) -> void:
-	if contest.outcome_mode == DialogContest.Mode.FRESH:
-		for var_name: StringName in contest.outcome_vars:
+## An activity node : erase its outcome variables if it starts fresh, hide
+## the box if it asks, hand over to the game, continue to its next node once
+## resolved. A contest also gets the historical card-phase signal.
+func _begin_activity(node: DialogActivity) -> void:
+	if node.outcome_mode == DialogActivity.Mode.FRESH:
+		for var_name: StringName in node.outcome_vars:
 			dialog_vars.erase(var_name)
 	_after_card_phase = func() -> void:
-		_enter(_follow(contest.next_dialog_id, contest.id), 0)
+		_enter(_follow(node.next_dialog_id, node.id), 0)
 	_is_waiting_for_card_phase = true
-	card_play_phase_started.emit(contest.id)
+	if node.hides_dialog and _current_box != null:
+		_current_box.visible = false
+	activity_started.emit(node)
+	if node is DialogContest:
+		card_play_phase_started.emit(node.id)
+
+
+## Whether a conversation is running right now (a box on screen, or an
+## activity the game is playing on its behalf).
+func is_dialog_active() -> bool:
+	return _is_dialog_active
+
+
+## Whether the conversation is waiting for the game to resolve an activity.
+func is_waiting_for_activity() -> bool:
+	return _is_waiting_for_card_phase
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -448,20 +476,33 @@ func _after_sequence() -> void:
 	_enter(_follow(sequence.next_dialog_id, sequence.id), 0)
 
 
-## To call after [signal card_play_phase_started] once the game's mini-game
-## step is done : the conversation moves on — to the contest's next node, or
-## to the re-filtered inline choices of older content.
-func resolve_card_play_phase() -> void:
+## To call after [signal activity_started] once the game is done : the box
+## comes back if it was hidden, and the conversation moves on — to the
+## activity's next node, or to the re-filtered inline choices of older
+## content.
+func resolve_activity() -> void:
 	if not _is_dialog_active or not _is_waiting_for_card_phase:
 		return
 	_is_waiting_for_card_phase = false
-	card_play_phase_resolved.emit(_current_node.id if _current_node != null else "")
+	if _current_box != null:
+		_current_box.visible = true
+	var node: DialogActivity = _current_node as DialogActivity
+	if node != null:
+		activity_resolved.emit(node)
+	if node == null or node is DialogContest:
+		card_play_phase_resolved.emit(_current_node.id if _current_node != null else "")
 	var next: Callable = _after_card_phase
 	_after_card_phase = Callable()
 	if next.is_valid():
 		next.call()
 	else:
 		_end_dialog()
+
+
+## Historical name of [method resolve_activity], kept for games wired to the
+## card phase.
+func resolve_card_play_phase() -> void:
+	resolve_activity()
 
 
 ## Shows [param choices], filtered against [member dialog_vars]. None

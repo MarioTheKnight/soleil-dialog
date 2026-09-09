@@ -137,7 +137,7 @@ DLG_EARTHQUAKE,en,"The ground [drop delay=0.05 height=20.0]is shaking![/drop]"
 
 ---
 
-## Le graphe de conversation (v0.2.0)
+## Le graphe de conversation (v0.2.0, activites v0.3.0)
 
 Une conversation est une **chaine de noeuds** (`DialogNode`), chacun ne faisant qu'une chose :
 
@@ -145,7 +145,8 @@ Une conversation est une **chaine de noeuds** (`DialogNode`), chacun ne faisant 
 |---|---|---|
 | `DialogSequence` | parle (des `DialogLine`) | `next_dialog_id`, ou fin |
 | `DialogPrompt` | demande au joueur (des `DialogChoice`) | une sortie par option |
-| `DialogContest` | remet la main au mini-jeu du jeu hote (phase de cartes), qui **ecrit des variables** | `next_dialog_id` |
+| `DialogActivity` (v0.3.0) | remet la main au JEU — une boutique, un mini-jeu, une scene —, qui **ecrit des variables** ; `hides_dialog` efface la boite pendant ce temps | `next_dialog_id` |
+| `DialogContest` | l'activite de la phase de cartes (sous-classe de `DialogActivity`, `activity = "card_phase"`) | `next_dialog_id` |
 | `DialogSwitch` | branche **sans ecran** sur les variables : ses cas dans l'ordre, sinon `default_target_id` | une sortie par cas, plus la sortie par defaut |
 
 Les noeuds se referencent **par id** via le catalogue (`register_sequence` / `register_sequences`, qui acceptent tout noeud), et **n'importe quel noeud peut ouvrir une conversation** — un aiguillage en entree ouvre sur un salut plutot que sur la presentation quand le jeu a seme « deja entendue » dans les variables (voir `dialog_vars_reset`).
@@ -179,15 +180,21 @@ Pourquoi des noeuds separes plutot qu'une sequence riche : une sequence qui port
 |-----------|------|--------|-------------|
 | `choices` | `Array[DialogChoice]` | `[]` | Les options, dans l'ordre d'affichage ; aucune disponible = la conversation se ferme (avertissement) |
 
-### DialogContest
+### DialogActivity (v0.3.0)
 
 | Propriete | Type | Defaut | Description |
 |-----------|------|--------|-------------|
-| `outcome_mode` | `Mode` | `FRESH` | `FRESH` : ses variables de resultat sont effacees au debut (ce duel seul decide) ; `CUMULATIVE` : elles gardent leur valeur |
-| `outcome_vars` | `Array[StringName]` | `[]` | Les variables que le mini-jeu ecrit — ce que `FRESH` efface, ce que les outils proposent aux conditions qui suivent |
-| `next_dialog_id` | `String` | `""` | Noeud joue une fois `resolve_card_play_phase()` appele |
+| `activity` | `StringName` | `""` | Ce que le jeu doit jouer, pour un jeu qui aiguille par nom ; une sous-classe fixe le sien dans `_init()` |
+| `outcome_mode` | `Mode` | `FRESH` | `FRESH` : ses variables de resultat sont effacees au debut (cette activite seule decide) ; `CUMULATIVE` : elles gardent leur valeur |
+| `outcome_vars` | `Array[StringName]` | `[]` | Les variables que le jeu ecrit — ce que `FRESH` efface, ce que les outils proposent aux conditions qui suivent |
+| `next_dialog_id` | `String` | `""` | Noeud joue une fois `resolve_activity()` appele |
+| `hides_dialog` | `bool` | `false` | La boite s'efface pendant l'activite (une boutique plein ecran) et revient a la resolution ; une main de cartes a cote du texte la garde |
 
-Le noeud ne porte **aucune regle du duel** : c'est le contrat, les regles peuvent changer entierement sans que le graphe bouge.
+Le noeud ne porte **aucune regle de l'activite** : c'est le contrat, les regles peuvent changer entierement sans que le graphe bouge. Le jeu donne un visage a une activite de deux facons : le nom libre `activity`, sur lequel il aiguille ; ou une **sous-classe** a charge typee (`DialogContest` ici ; un noeud « boutique » dans un jeu, qui pointe le marchand a ouvrir), sur laquelle il aiguille par classe. Les outils decouvrent les sous-classes comme de nouvelles sortes de noeud.
+
+### DialogContest
+
+Une `DialogActivity` dont `activity` vaut `"card_phase"` : la phase de cartes. Le manager emet pour elle, en plus de `activity_started`, les signaux historiques `card_play_phase_started` / `card_play_phase_resolved`, et `resolve_card_play_phase()` reste l'alias de `resolve_activity()`.
 
 ### DialogSwitch et DialogSwitchCase
 
@@ -270,19 +277,19 @@ DialogManager.dialog_vars_reset.connect(func(vars: Dictionary) -> void:
 
 Les conditions restent pures et testables ; la memoire reste au jeu.
 
-## Hook mini-jeu (phase de cartes)
+## Hook du jeu (activites : boutique, phase de cartes, scene...)
 
-Quand la conversation entre dans un `DialogContest`, le manager efface ses `outcome_vars` si `outcome_mode` est `FRESH`, emet `card_play_phase_started(contest_id)` et attend. Le jeu affiche alors sa propre UI (ex: une main de cartes sociales), ecrit dans `dialog_vars`, puis rend la main :
+Quand la conversation entre dans une `DialogActivity`, le manager efface ses `outcome_vars` si `outcome_mode` est `FRESH`, cache la boite si `hides_dialog`, emet `activity_started(node)` et attend. Le jeu reconnait le noeud (par sa classe, ou par `activity`), fait ce qu'il a a faire — ouvrir un etal, une main de cartes —, ecrit dans `dialog_vars`, puis rend la main :
 
 ```gdscript
-DialogManager.card_play_phase_started.connect(func(_id: String) -> void:
-    my_social_hand.open()   # les effets de cartes ecrivent dans dialog_vars
+DialogManager.activity_started.connect(func(node: DialogActivity) -> void:
+    if node is MyShopNode:
+        open_shop(node.merchant)   # a la fermeture : dialog_vars[&"gold_spent"] = ..., puis
+    # DialogManager.resolve_activity()   # la boite revient, la conversation suit next_dialog_id
 )
-# Quand le joueur a fini :
-DialogManager.resolve_card_play_phase()   # la conversation suit next_dialog_id
 ```
 
-Ce que le duel a decide se lit ensuite dans un `DialogSwitch` (sans demander au joueur) ou dans les preconditions d'un `DialogPrompt` (options debloquees ou verrouillees).
+Pour la phase de cartes, `card_play_phase_started` / `resolve_card_play_phase()` continuent de fonctionner tels quels. Ce que l'activite a decide se lit ensuite dans un `DialogSwitch` (sans demander au joueur) ou dans les preconditions d'un `DialogPrompt` (options debloquees ou verrouillees).
 
 ---
 
@@ -325,7 +332,9 @@ Les caracteres tombent un par un depuis le haut, creant un effet de revelation d
 | `node_entered` | `node: DialogNode` | Un noeud commence a jouer — l'entree, puis chaque noeud atteint ; `node is DialogSequence` pour ne garder que ce qui parle |
 | `dialog_finished` | `sequence_id: String` | La conversation est finie ; l'id est celui du DERNIER noeud |
 | `choice_made` | `sequence_id: String, choice: DialogChoice` | Le joueur a retenu une option (avant branchement/fin) — les consommateurs lisent `choice.tags`, texte, cible |
-| `card_play_phase_started` | `sequence_id: String` | Un affrontement attend le mini-jeu du jeu hote (voir hook ci-dessus) |
+| `activity_started` | `node: DialogActivity` | Une activite attend le jeu (voir hook ci-dessus) ; la boite est cachee si le noeud le demande |
+| `activity_resolved` | `node: DialogActivity` | `resolve_activity()` appele, la conversation va suivre |
+| `card_play_phase_started` | `sequence_id: String` | Un affrontement attend le mini-jeu du jeu hote — emis avec `activity_started` pour un `DialogContest` |
 | `card_play_phase_resolved` | `sequence_id: String` | `resolve_card_play_phase()` appele, la conversation va suivre |
 
 ### Signaux de la DialogBox (internes)
