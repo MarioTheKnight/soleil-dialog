@@ -17,6 +17,10 @@ signal advance_requested
 @onready var choices_container: VBoxContainer = $MarginContainer/Panel/HBoxContainer/TextVBox/MarginContainer/ChoicesContainer
 @onready var auto_read_icon: ColorRect = $MarginContainer/Panel/AutoReadIcon
 @onready var next_icon: Polygon2D = $MarginContainer/Panel/NextIcon
+## The text column (nameplate, line, choices) between the two portraits : the
+## « next » indicator is anchored to ITS bottom-right corner, not the panel's,
+## so it never overlaps a portrait shown on the right.
+@onready var text_column: VBoxContainer = $MarginContainer/Panel/HBoxContainer/TextVBox
 @onready var layout_vbox: VBoxContainer = $MarginContainer/Panel/HBoxContainer/TextVBox/MarginContainer/VBox
 
 var _is_typing: bool = false
@@ -58,6 +62,20 @@ func _ready() -> void:
 	text_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	portrait_left.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	portrait_right.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	# The indicator follows the text column : a portrait appearing on the right
+	# narrows the column, a window resize widens it, and a line shown before
+	# the first layout pass has no column size to read yet. Placing on
+	# [signal Control.resized] covers all three.
+	text_column.resized.connect(_place_next_icon)
+
+
+## Puts the « next » indicator at the bottom-right of the text column, inside
+## its inner margin : under the last line of text, at the foot of a right-hand
+## portrait rather than on top of it. Offsets = the column's 16 px margin,
+## plus the triangle's own width (16) and height (12).
+func _place_next_icon() -> void:
+	next_icon.global_position = text_column.global_position + text_column.size - Vector2(32, 28)
 
 
 ## Constrains the box to a horizontal screen fraction (0..1 anchors), so a
@@ -145,8 +163,7 @@ func _finish_typing() -> void:
 	text_label.visible_characters = -1
 	next_icon.show()
 	
-	# Update position of next_icon based on text
-	next_icon.global_position = panel.global_position + panel.size - Vector2(30, 30)
+	_place_next_icon()
 	line_finished.emit()
 
 
